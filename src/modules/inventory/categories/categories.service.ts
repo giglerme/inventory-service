@@ -1,4 +1,4 @@
-import { HttpStatus, Injectable } from '@nestjs/common';
+import { HttpStatus, Injectable, Logger } from '@nestjs/common';
 import { CategoryScope, Prisma } from '../../../generated/prisma/client.js';
 import { AppException } from '../../../common/errors/app.exception.js';
 import { ErrorCode } from '../../../common/errors/error-codes.js';
@@ -9,10 +9,14 @@ import type { UpdateCategoryDto } from './dto/update-category.dto.js';
 
 @Injectable()
 export class CategoriesService {
+  private readonly logger = new Logger(CategoriesService.name);
+
   constructor(private readonly prisma: PrismaService) {}
 
-  list(userId: string) {
-    return this.prisma.inventoryCategory.findMany({
+  async list(userId: string) {
+    const startedAt = Date.now();
+
+    const categories = await this.prisma.inventoryCategory.findMany({
       where: {
         isActive: true,
 
@@ -41,6 +45,15 @@ export class CategoriesService {
         },
       ],
     });
+
+    this.logger.log({
+      event: 'inventory.categories.list.completed',
+      userId,
+      count: categories.length,
+      prismaQueryDurationMs: Date.now() - startedAt,
+    });
+
+    return categories;
   }
 
   async create(userId: string, dto: CreateCategoryDto) {

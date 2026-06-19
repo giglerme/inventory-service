@@ -11,13 +11,14 @@ import {
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import type { Response } from 'express';
-import { CurrentUserId } from '../../../common/decorators/current-user-id.decorator.js';
 import { UuidParam } from '../../../common/decorators/uuid-param.decorator.js';
-import { InternalServiceGuard } from '../../../common/guards/internal-service.guard.js';
+import type { AuthenticatedUser } from '../../auth/authenticated-user.js';
+import { CurrentUser } from '../../auth/current-user.decorator.js';
+import { JwtAuthGuard } from '../../auth/jwt-auth.guard.js';
 import { PhotosService } from './photos.service.js';
 
 @Controller('internal/inventory')
-@UseGuards(InternalServiceGuard)
+@UseGuards(JwtAuthGuard)
 export class PhotosController {
   constructor(private readonly photosService: PhotosService) {}
 
@@ -32,8 +33,8 @@ export class PhotosController {
     }),
   )
   upload(
-    @CurrentUserId()
-    userId: string,
+    @CurrentUser()
+    user: AuthenticatedUser,
 
     @UuidParam('itemId')
     itemId: string,
@@ -41,24 +42,24 @@ export class PhotosController {
     @UploadedFile()
     file?: Express.Multer.File,
   ) {
-    return this.photosService.upload(userId, itemId, file);
+    return this.photosService.upload(user.sub, itemId, file);
   }
 
   @Get('items/:itemId/photos')
   list(
-    @CurrentUserId()
-    userId: string,
+    @CurrentUser()
+    user: AuthenticatedUser,
 
     @UuidParam('itemId')
     itemId: string,
   ) {
-    return this.photosService.list(userId, itemId);
+    return this.photosService.list(user.sub, itemId);
   }
 
   @Delete('items/:itemId/photos/:photoId')
   remove(
-    @CurrentUserId()
-    userId: string,
+    @CurrentUser()
+    user: AuthenticatedUser,
 
     @UuidParam('itemId')
     itemId: string,
@@ -66,13 +67,13 @@ export class PhotosController {
     @UuidParam('photoId')
     photoId: string,
   ) {
-    return this.photosService.remove(userId, itemId, photoId);
+    return this.photosService.remove(user.sub, itemId, photoId);
   }
 
   @Get('photos/:photoId/content')
   async content(
-    @CurrentUserId()
-    userId: string,
+    @CurrentUser()
+    user: AuthenticatedUser,
 
     @UuidParam('photoId')
     photoId: string,
@@ -84,14 +85,14 @@ export class PhotosController {
     response: Response,
   ) {
     const content = await this.photosService.getContent(
-      userId,
+      user.sub,
       photoId,
       variant,
     );
 
     response.setHeader('Content-Type', content.mimeType);
 
-    response.setHeader('Cache-Control', 'private, max-age=3600');
+    response.setHeader('Cache-Control', 'no-store');
 
     response.send(content.buffer);
   }

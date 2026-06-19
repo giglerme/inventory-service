@@ -1,6 +1,7 @@
 import 'dotenv/config';
 import { HttpStatus, Logger, ValidationPipe } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
+import cookieParser from 'cookie-parser';
 import { AppModule } from './app.module.js';
 import { AppException } from './common/errors/app.exception.js';
 import { ErrorCode } from './common/errors/error-codes.js';
@@ -11,6 +12,8 @@ async function bootstrap() {
   const app = await NestFactory.create(AppModule);
 
   app.enableShutdownHooks();
+
+  app.use(cookieParser());
 
   app.useGlobalFilters(new HttpExceptionFilter());
 

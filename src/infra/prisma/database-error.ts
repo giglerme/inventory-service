@@ -6,6 +6,7 @@ const unavailablePrismaErrorCodes = new Set([
   'P1002',
   'P1008',
   'P1017',
+  'P2024',
 ]);
 
 const unavailableDriverErrorCodes = new Set([

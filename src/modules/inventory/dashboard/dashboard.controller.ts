@@ -1,18 +1,19 @@
 import { Controller, Get, UseGuards } from '@nestjs/common';
-import { CurrentUserId } from '../../../common/decorators/current-user-id.decorator.js';
-import { InternalServiceGuard } from '../../../common/guards/internal-service.guard.js';
+import type { AuthenticatedUser } from '../../auth/authenticated-user.js';
+import { CurrentUser } from '../../auth/current-user.decorator.js';
+import { JwtAuthGuard } from '../../auth/jwt-auth.guard.js';
 import { DashboardService } from './dashboard.service.js';
 
 @Controller('internal/inventory/dashboard')
-@UseGuards(InternalServiceGuard)
+@UseGuards(JwtAuthGuard)
 export class DashboardController {
   constructor(private readonly dashboardService: DashboardService) {}
 
   @Get('summary')
   getSummary(
-    @CurrentUserId()
-    userId: string,
+    @CurrentUser()
+    user: AuthenticatedUser,
   ) {
-    return this.dashboardService.getSummary(userId);
+    return this.dashboardService.getSummary(user.sub);
   }
 }

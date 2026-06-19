@@ -1,8 +1,10 @@
 import type { Request } from 'express';
+import type { AuthenticatedUser } from '../../modules/auth/authenticated-user.js';
 
 export type RequestWithContext = Request & {
   requestId?: string;
   requestStartedAt?: number;
+  user?: AuthenticatedUser;
   userId?: string;
 };
 

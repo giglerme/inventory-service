@@ -12,12 +12,12 @@ export const CurrentUserId = createParamDecorator(
   (_data: unknown, context: ExecutionContext): string => {
     const request = context.switchToHttp().getRequest<RequestWithContext>();
 
-    const userId = request.userId ?? request.headers['x-user-id'];
+    const userId = request.user?.sub;
 
     if (typeof userId !== 'string' || !uuidPattern.test(userId)) {
       throw new AppException(
         ErrorCode.VALIDATION_ERROR,
-        'x-user-id deve ser um UUID valido',
+        'Usuario autenticado deve ter sub UUID valido',
         HttpStatus.BAD_REQUEST,
       );
     }

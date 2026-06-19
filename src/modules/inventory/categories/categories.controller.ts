@@ -7,41 +7,42 @@ import {
   Post,
   UseGuards,
 } from '@nestjs/common';
-import { CurrentUserId } from '../../../common/decorators/current-user-id.decorator.js';
 import { UuidParam } from '../../../common/decorators/uuid-param.decorator.js';
-import { InternalServiceGuard } from '../../../common/guards/internal-service.guard.js';
+import type { AuthenticatedUser } from '../../auth/authenticated-user.js';
+import { CurrentUser } from '../../auth/current-user.decorator.js';
+import { JwtAuthGuard } from '../../auth/jwt-auth.guard.js';
 import { CategoriesService } from './categories.service.js';
 import { CreateCategoryDto } from './dto/create-category.dto.js';
 import { UpdateCategoryDto } from './dto/update-category.dto.js';
 
 @Controller('internal/inventory/categories')
-@UseGuards(InternalServiceGuard)
+@UseGuards(JwtAuthGuard)
 export class CategoriesController {
   constructor(private readonly categoriesService: CategoriesService) {}
 
   @Get()
   list(
-    @CurrentUserId()
-    userId: string,
+    @CurrentUser()
+    user: AuthenticatedUser,
   ) {
-    return this.categoriesService.list(userId);
+    return this.categoriesService.list(user.sub);
   }
 
   @Post()
   create(
-    @CurrentUserId()
-    userId: string,
+    @CurrentUser()
+    user: AuthenticatedUser,
 
     @Body()
     dto: CreateCategoryDto,
   ) {
-    return this.categoriesService.create(userId, dto);
+    return this.categoriesService.create(user.sub, dto);
   }
 
   @Patch(':id')
   update(
-    @CurrentUserId()
-    userId: string,
+    @CurrentUser()
+    user: AuthenticatedUser,
 
     @UuidParam('id')
     categoryId: string,
@@ -49,17 +50,17 @@ export class CategoriesController {
     @Body()
     dto: UpdateCategoryDto,
   ) {
-    return this.categoriesService.update(userId, categoryId, dto);
+    return this.categoriesService.update(user.sub, categoryId, dto);
   }
 
   @Delete(':id')
   remove(
-    @CurrentUserId()
-    userId: string,
+    @CurrentUser()
+    user: AuthenticatedUser,
 
     @UuidParam('id')
     categoryId: string,
   ) {
-    return this.categoriesService.remove(userId, categoryId);
+    return this.categoriesService.remove(user.sub, categoryId);
   }
 }

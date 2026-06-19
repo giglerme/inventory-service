@@ -6,6 +6,7 @@ import {
   HttpStatus,
 } from '@nestjs/common';
 import type { Response } from 'express';
+import { Prisma } from '../../generated/prisma/client.js';
 import { isDatabaseUnavailableError } from '../../infra/prisma/database-error.js';
 import {
   AppException,
@@ -51,6 +52,13 @@ export class HttpExceptionFilter implements ExceptionFilter {
 
     if (errorShape.details !== undefined) {
       body.details = this.sanitizeDetails(errorShape.details);
+
+      if (
+        this.isRecord(errorShape.details) &&
+        'currentItem' in errorShape.details
+      ) {
+        body.currentItem = this.sanitizeDetails(errorShape.details.currentItem);
+      }
     }
 
     logSafeError({
@@ -81,6 +89,16 @@ export class HttpExceptionFilter implements ExceptionFilter {
       return HttpStatus.SERVICE_UNAVAILABLE;
     }
 
+    if (exception instanceof Prisma.PrismaClientKnownRequestError) {
+      if (exception.code === 'P2025') {
+        return HttpStatus.NOT_FOUND;
+      }
+
+      if (exception.code === 'P2002') {
+        return HttpStatus.CONFLICT;
+      }
+    }
+
     return HttpStatus.INTERNAL_SERVER_ERROR;
   }
 
@@ -100,6 +118,10 @@ export class HttpExceptionFilter implements ExceptionFilter {
         code: ErrorCode.INVENTORY_DATABASE_UNAVAILABLE,
         message: 'Banco de dados indisponivel',
       };
+    }
+
+    if (exception instanceof Prisma.PrismaClientKnownRequestError) {
+      return this.getPrismaKnownErrorShape(exception, statusCode);
     }
 
     if (exception instanceof HttpException) {
@@ -144,6 +166,33 @@ export class HttpExceptionFilter implements ExceptionFilter {
     return ErrorCode.INVENTORY_INTERNAL_ERROR;
   }
 
+  private getPrismaKnownErrorShape(
+    exception: Prisma.PrismaClientKnownRequestError,
+    statusCode: number,
+  ): ErrorShape {
+    if (exception.code === 'P2025') {
+      return {
+        statusCode,
+        code: ErrorCode.INVENTORY_RECORD_NOT_FOUND,
+        message: 'Registro nao encontrado',
+      };
+    }
+
+    if (exception.code === 'P2002') {
+      return {
+        statusCode,
+        code: ErrorCode.INVENTORY_RECORD_CONFLICT,
+        message: 'Registro duplicado',
+      };
+    }
+
+    return {
+      statusCode,
+      code: ErrorCode.INVENTORY_INTERNAL_ERROR,
+      message: 'Erro interno do inventory-service',
+    };
+  }
+
   private sanitizeDetails(details: unknown): SanitizedDetails {
     if (Array.isArray(details)) {
       const values = details as unknown[];
@@ -161,6 +210,18 @@ export class HttpExceptionFilter implements ExceptionFilter {
       details === null
     ) {
       return details;
+    }
+
+    if (details instanceof Date) {
+      return details.toISOString();
+    }
+
+    if (this.hasToJson(details)) {
+      const jsonValue = details.toJSON();
+
+      if (jsonValue !== details) {
+        return this.sanitizeDetails(jsonValue);
+      }
     }
 
     if (this.isRecord(details)) {
@@ -204,6 +265,15 @@ export class HttpExceptionFilter implements ExceptionFilter {
 
   private isRecord(value: unknown): value is Record<string, unknown> {
     return typeof value === 'object' && value !== null && !Array.isArray(value);
+  }
+
+  private hasToJson(value: unknown): value is { toJSON: () => unknown } {
+    return (
+      typeof value === 'object' &&
+      value !== null &&
+      'toJSON' in value &&
+      typeof value.toJSON === 'function'
+    );
   }
 
   private isSensitiveKey(key: string) {

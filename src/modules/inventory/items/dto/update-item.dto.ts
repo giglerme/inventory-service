@@ -16,10 +16,11 @@ import {
 import { Type } from 'class-transformer';
 
 export class UpdateItemDto {
+  @IsOptional()
   @IsInt()
   @Min(0)
   @Type(() => Number)
-  expectedVersion!: number;
+  expectedVersion?: number;
 
   @IsOptional()
   @IsString()

@@ -1,13 +1,20 @@
-import { HttpStatus, Injectable } from '@nestjs/common';
+import { HttpStatus, Injectable, Logger } from '@nestjs/common';
 import { CategoryScope } from '../../../generated/prisma/client.js';
 import { AppException } from '../../../common/errors/app.exception.js';
 import { ErrorCode } from '../../../common/errors/error-codes.js';
 import { PrismaService } from '../../../infra/prisma/prisma.service.js';
 import type { CreateItemDto } from './dto/create-item.dto.js';
+import type { ListItemsQueryDto } from './dto/list-items-query.dto.js';
 import type { UpdateItemDto } from './dto/update-item.dto.js';
 
 @Injectable()
 export class ItemsService {
+  private readonly logger = new Logger(ItemsService.name);
+
+  private readonly defaultListLimit = 50;
+
+  private readonly maxListLimit = 100;
+
   private readonly photoSelect = {
     id: true,
     mimeType: true,
@@ -20,21 +27,26 @@ export class ItemsService {
 
   constructor(private readonly prisma: PrismaService) {}
 
-  list(userId: string) {
-    return this.prisma.inventoryItem.findMany({
+  async list(userId: string, query: ListItemsQueryDto = {}) {
+    const startedAt = Date.now();
+    const limit = this.getListLimit(query.limit);
+
+    const items = await this.prisma.inventoryItem.findMany({
       where: {
         userId,
       },
 
       orderBy: [
         {
-          expiresAt: 'asc',
+          updatedAt: 'desc',
         },
 
         {
           createdAt: 'desc',
         },
       ],
+
+      take: limit,
 
       include: {
         category: true,
@@ -50,10 +62,22 @@ export class ItemsService {
             },
           ],
 
+          take: 1,
+
           select: this.photoSelect,
         },
       },
     });
+
+    this.logger.log({
+      event: 'inventory.items.list.completed',
+      userId,
+      limit,
+      count: items.length,
+      prismaQueryDurationMs: Date.now() - startedAt,
+    });
+
+    return items;
   }
 
   async findOne(userId: string, itemId: string) {
@@ -131,6 +155,14 @@ export class ItemsService {
   }
 
   async update(userId: string, itemId: string, dto: UpdateItemDto) {
+    if (dto.expectedVersion === undefined) {
+      throw new AppException(
+        ErrorCode.ITEM_VERSION_REQUIRED,
+        'Versao atual do item obrigatoria para atualizar.',
+        HttpStatus.BAD_REQUEST,
+      );
+    }
+
     const item = await this.prisma.inventoryItem.findFirst({
       where: {
         id: itemId,
@@ -153,7 +185,7 @@ export class ItemsService {
     }
 
     if (item.version !== dto.expectedVersion) {
-      throw this.itemVersionConflict();
+      throw this.itemVersionConflict(await this.findOne(userId, itemId));
     }
 
     await this.ensureCategoryAccessible(userId, dto.categoryId);
@@ -195,7 +227,7 @@ export class ItemsService {
     });
 
     if (result.count === 0) {
-      throw this.itemVersionConflict();
+      throw this.itemVersionConflict(await this.findOne(userId, itemId));
     }
 
     return this.findOne(userId, itemId);
@@ -253,12 +285,23 @@ export class ItemsService {
     }
   }
 
-  private itemVersionConflict() {
+  private itemVersionConflict(currentItem: unknown) {
     return new AppException(
       ErrorCode.ITEM_VERSION_CONFLICT,
-      'O alimento foi alterado em outro dispositivo. Atualize os dados antes de salvar novamente.',
+      'Este item foi atualizado por outra operacao. Recarregue os dados e tente novamente.',
       HttpStatus.CONFLICT,
+      {
+        currentItem,
+      },
     );
+  }
+
+  private getListLimit(limit?: number) {
+    if (limit === undefined) {
+      return this.defaultListLimit;
+    }
+
+    return Math.min(Math.max(limit, 1), this.maxListLimit);
   }
 
   private toDate(value?: string) {

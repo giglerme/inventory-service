@@ -11,6 +11,7 @@ export class DashboardService {
   constructor(private readonly prisma: PrismaService) {}
 
   async getSummary(userId: string) {
+    const startedAt = Date.now();
     const today = this.startOfUtcDay(new Date());
     const expiringLimit = new Date(today);
 
@@ -80,6 +81,12 @@ export class DashboardService {
 
       // Temporário: permite detectar BigInt antes que a resposta chegue ao Nest.
       JSON.stringify(response);
+
+      this.logger.log({
+        event: 'inventory.dashboard.summary.completed',
+        userId,
+        durationMs: Date.now() - startedAt,
+      });
 
       return response;
     } catch (error) {
@@ -236,8 +243,18 @@ export class DashboardService {
   }
 
   private async traceQuery<T>(query: string, operation: Promise<T>) {
+    const startedAt = Date.now();
+
     try {
-      return await operation;
+      const result = await operation;
+
+      this.logger.log({
+        event: 'inventory.dashboard.query.completed',
+        query,
+        durationMs: Date.now() - startedAt,
+      });
+
+      return result;
     } catch (error) {
       this.logger.error({
         event: 'inventory.dashboard.query.failed',

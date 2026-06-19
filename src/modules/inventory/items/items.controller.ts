@@ -5,54 +5,60 @@ import {
   Get,
   Patch,
   Post,
+  Query,
   UseGuards,
 } from '@nestjs/common';
-import { CurrentUserId } from '../../../common/decorators/current-user-id.decorator.js';
 import { UuidParam } from '../../../common/decorators/uuid-param.decorator.js';
-import { InternalServiceGuard } from '../../../common/guards/internal-service.guard.js';
+import type { AuthenticatedUser } from '../../auth/authenticated-user.js';
+import { CurrentUser } from '../../auth/current-user.decorator.js';
+import { JwtAuthGuard } from '../../auth/jwt-auth.guard.js';
 import { CreateItemDto } from './dto/create-item.dto.js';
+import { ListItemsQueryDto } from './dto/list-items-query.dto.js';
 import { UpdateItemDto } from './dto/update-item.dto.js';
 import { ItemsService } from './items.service.js';
 
 @Controller('internal/inventory/items')
-@UseGuards(InternalServiceGuard)
+@UseGuards(JwtAuthGuard)
 export class ItemsController {
   constructor(private readonly itemsService: ItemsService) {}
 
   @Get()
   list(
-    @CurrentUserId()
-    userId: string,
+    @CurrentUser()
+    user: AuthenticatedUser,
+
+    @Query()
+    query: ListItemsQueryDto,
   ) {
-    return this.itemsService.list(userId);
+    return this.itemsService.list(user.sub, query);
   }
 
   @Get(':id')
   findOne(
-    @CurrentUserId()
-    userId: string,
+    @CurrentUser()
+    user: AuthenticatedUser,
 
     @UuidParam('id')
     itemId: string,
   ) {
-    return this.itemsService.findOne(userId, itemId);
+    return this.itemsService.findOne(user.sub, itemId);
   }
 
   @Post()
   create(
-    @CurrentUserId()
-    userId: string,
+    @CurrentUser()
+    user: AuthenticatedUser,
 
     @Body()
     dto: CreateItemDto,
   ) {
-    return this.itemsService.create(userId, dto);
+    return this.itemsService.create(user.sub, dto);
   }
 
   @Patch(':id')
   update(
-    @CurrentUserId()
-    userId: string,
+    @CurrentUser()
+    user: AuthenticatedUser,
 
     @UuidParam('id')
     itemId: string,
@@ -60,17 +66,17 @@ export class ItemsController {
     @Body()
     dto: UpdateItemDto,
   ) {
-    return this.itemsService.update(userId, itemId, dto);
+    return this.itemsService.update(user.sub, itemId, dto);
   }
 
   @Delete(':id')
   remove(
-    @CurrentUserId()
-    userId: string,
+    @CurrentUser()
+    user: AuthenticatedUser,
 
     @UuidParam('id')
     itemId: string,
   ) {
-    return this.itemsService.remove(userId, itemId);
+    return this.itemsService.remove(user.sub, itemId);
   }
 }

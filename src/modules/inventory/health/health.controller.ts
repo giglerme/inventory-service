@@ -23,9 +23,12 @@ export class HealthController {
   @HttpCode(200)
   async readiness() {
     try {
-      await this.prisma.$queryRaw`
-        SELECT 1
-      `;
+      await this.withTimeout(
+        this.prisma.$queryRaw`
+          SELECT 1
+        `,
+        1_500,
+      );
     } catch {
       throw new InventoryDatabaseUnavailableException({
         checks: {
@@ -42,5 +45,19 @@ export class HealthController {
       },
       timestamp: new Date().toISOString(),
     };
+  }
+
+  private withTimeout<T>(operation: Promise<T>, timeoutMs: number) {
+    let timeout: NodeJS.Timeout;
+
+    const timeoutPromise = new Promise<never>((_resolve, reject) => {
+      timeout = setTimeout(() => {
+        reject(new Error('readiness timeout'));
+      }, timeoutMs);
+    });
+
+    return Promise.race([operation, timeoutPromise]).finally(() => {
+      clearTimeout(timeout);
+    });
   }
 }

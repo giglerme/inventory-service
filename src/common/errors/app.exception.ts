@@ -8,6 +8,7 @@ export type ApiErrorResponse = {
   message: string;
   requestId?: string;
   details?: unknown;
+  currentItem?: unknown;
 };
 
 export class AppException extends HttpException {
